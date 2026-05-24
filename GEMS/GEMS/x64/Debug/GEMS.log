@@ -1,0 +1,8 @@
+﻿  Board.cpp
+C:\Users\Windows\source\repos\GEMS\GEMS\Board.cpp(338,39): warning C4244: аргумент: преобразование "int" в "float", возможна потеря данных
+C:\Users\Windows\source\repos\GEMS\GEMS\Board.cpp(338,29): warning C4244: аргумент: преобразование "int" в "float", возможна потеря данных
+C:\Users\Windows\source\repos\GEMS\GEMS\Board.cpp(345,59): warning C4244: аргумент: преобразование "int" в "float", возможна потеря данных
+C:\Users\Windows\source\repos\GEMS\GEMS\Board.cpp(345,44): warning C4244: аргумент: преобразование "int" в "float", возможна потеря данных
+C:\Users\Windows\source\repos\GEMS\GEMS\Board.cpp(361,49): warning C4244: аргумент: преобразование "int" в "float", возможна потеря данных
+C:\Users\Windows\source\repos\GEMS\GEMS\Board.cpp(361,39): warning C4244: аргумент: преобразование "int" в "float", возможна потеря данных
+  GEMS.vcxproj -> C:\Users\Windows\source\repos\GEMS\x64\Debug\GEMS.exe
