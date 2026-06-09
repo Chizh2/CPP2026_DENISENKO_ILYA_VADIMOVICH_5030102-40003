@@ -1,5 +1,9 @@
 #pragma once
 
+#include <SFML/Graphics.hpp>
+#include <memory>
+class Board;
+
 enum class Color {
     Red,
     Green,
@@ -9,17 +13,42 @@ enum class Color {
     Empty
 };
 
-enum class BonusType {
-    None,
-    Paint,
-    Bomb
+enum class CellType {
+    Gem,
+    PaintBonus,
+    BombBonus
 };
 
-struct Cell {
-    Color color = Color::Empty;
-    BonusType bonus = BonusType::None;
+class Cell {
+protected:
+    Color color;
 
-    bool hasBonus() const {
-        return bonus != BonusType::None;
+public:
+    Cell(Color c = Color::Empty) : color(c) {}
+    virtual ~Cell() = default;
+    Color getColor() const {
+        return color;
+    }
+
+    void setColor(Color c) {
+        color = c;
+    }
+
+    virtual CellType getType() const {
+        return CellType::Gem;
+    }
+
+    virtual bool isBonus() const {
+        return false;
+    }
+    virtual void activate(Board& board, int x, int y) {}
+};
+
+class GemCell : public Cell {
+public:
+    GemCell(Color c = Color::Empty) : Cell(c) {}
+
+    CellType getType() const override {
+        return CellType::Gem;
     }
 };

@@ -4,48 +4,112 @@
 #include <ctime>
 #include <cmath>
 #include <algorithm>
-#include <iostream>
+#include <random>
+
+Color Board::randomColor() const {
+    return static_cast<Color>(rand() % 5);
+}
+
+std::unique_ptr<Cell> Board::createRandomGem() const {
+    return std::make_unique<GemCell>(randomColor());
+}
 
 Board::Board() {
-    srand((unsigned)time(nullptr));
+    srand(static_cast<unsigned>(time(nullptr)));
 
     for (int y = 0; y < H; y++) {
         for (int x = 0; x < W; x++) {
-            board[y][x].color = (Color)(rand() % 5);
-            board[y][x].bonus = BonusType::None;
+            board[y][x] = createRandomGem();
         }
     }
+
     clearStartMatches();
 }
 
-bool Board::inside(int x, int y) {
+bool Board::inside(int x, int y) const {
     return x >= 0 && x < W && y >= 0 && y < H;
 }
 
-bool Board::isNeighbor(int x1, int y1, int x2, int y2) {
-    return abs(x1 - x2) + abs(y1 - y2) == 1;
+bool Board::isNeighbor(int x1, int y1, int x2, int y2) const {
+    return std::abs(x1 - x2) + std::abs(y1 - y2) == 1;
+}
+
+int Board::width() const {
+    return W;
+}
+
+int Board::height() const {
+    return H;
 }
 
 void Board::swap(int x1, int y1, int x2, int y2) {
     std::swap(board[y1][x1], board[y2][x2]);
 }
 
-Color Board::getColor(int x, int y) {
-    return board[y][x].color;
+Color Board::getColor(int x, int y) const {
+    if (!inside(x, y) || !board[y][x]) {
+        return Color::Empty;
+    }
+
+    return board[y][x]->getColor();
+}
+
+CellType Board::getCellType(int x, int y) const {
+    if (!inside(x, y) || !board[y][x]) {
+        return CellType::Gem;
+    }
+
+    return board[y][x]->getType();
 }
 
 void Board::setColor(int x, int y, Color c) {
-    board[y][x].color = c;
+    if (!inside(x, y)) {
+        return;
+    }
+
+    if (!board[y][x]) {
+        board[y][x] = std::make_unique<GemCell>(c);
+    }
+
+    else {
+        board[y][x]->setColor(c);
+    }
+}
+
+void Board::setGem(int x, int y, Color c) {
+    if (inside(x, y)) {
+        board[y][x] = std::make_unique<GemCell>(c);
+    }
+}
+
+void Board::setPaintBonus(int x, int y, Color c) {
+    if (inside(x, y)) {
+        board[y][x] = std::make_unique<PaintBonusCell>(c);
+    }
+}
+
+void Board::setBombBonus(int x, int y, Color c) {
+    if (inside(x, y)) {
+        board[y][x] = std::make_unique<BombBonusCell>(c);
+    }
+}
+
+void Board::setEmpty(int x, int y) {
+    if (inside(x, y)) {
+        board[y][x] = std::make_unique<GemCell>(Color::Empty);
+    }
 }
 
 void Board::findGroup(int x, int y, Color c, bool vis[H][W], std::vector<sf::Vector2i>& g) {
     if (!inside(x, y)) {
         return;
     }
+
     if (vis[y][x]) {
         return;
     }
-    if (board[y][x].color != c) {
+
+    if (getColor(x, y) != c || c == Color::Empty) {
         return;
     }
 
@@ -62,25 +126,20 @@ bool Board::hasMatchAfterSwap(int x1, int y1, int x2, int y2) {
     swap(x1, y1, x2, y2);
 
     bool vis[H][W] = {};
-    std::vector<sf::Vector2i> g;
-
     for (int y = 0; y < H; y++) {
         for (int x = 0; x < W; x++) {
-
-            if (vis[y][x] || board[y][x].color == Color::Empty) {
+            if (vis[y][x] || getColor(x, y) == Color::Empty) {
                 continue;
             }
 
-            g.clear();
-            findGroup(x, y, board[y][x].color, vis, g);
-
-            if (g.size() >= 3) {
+            std::vector<sf::Vector2i> group;
+            findGroup(x, y, getColor(x, y), vis, group);
+            if (group.size() >= 3) {
                 swap(x1, y1, x2, y2);
                 return true;
             }
         }
     }
-
     swap(x1, y1, x2, y2);
     return false;
 }
@@ -93,114 +152,92 @@ void Board::handleClick(int mx, int my) {
         return;
     }
 
-    if (board[y][x].bonus != BonusType::None) {
-
-        //PAINT
-        if (board[y][x].bonus == BonusType::Paint) {
-            Color c = board[y][x].color;
-
-            board[y][x].color = c;
-
-            int painted = 0;
-
-            while (painted < 2) {
-                int rx = rand() % W;
-                int ry = rand() % H;
-
-                if (abs(rx - x) + abs(ry - y) <= 1) {
-                    continue;
-                }
-
-                board[ry][rx].color = c;
-
-                painted++;
-            }
-        }
-
-        //BOMB 
-        else if (board[y][x].bonus == BonusType::Bomb) {
-            int destroyed = 0;
-
-            board[y][x].color = Color::Empty;
-            board[y][x].bonus = BonusType::None;
-
-            destroyed++;
-
-            while (destroyed < 5) {
-                int rx = rand() % W;
-                int ry = rand() % H;
-
-                if (board[ry][rx].color == Color::Empty) {
-                    continue;
-                }
-
-                board[ry][rx].color = Color::Empty;
-                board[ry][rx].bonus = BonusType::None;
-
-                destroyed++;
-            }
-        }
-
-        board[y][x].bonus = BonusType::None;
-
+    if (board[y][x] && board[y][x]->isBonus()) {
+        board[y][x]->activate(*this, x, y);
         process();
         return;
     }
 
     if (!selected) {
-        sel = {x, y};
-
-        selected = true;
-
+        sel = { x, y };
         selectedCell = sel;
+        selected = true;
         hasSelection = true;
-
         return;
     }
 
     if (isNeighbor(sel.x, sel.y, x, y)) {
         if (hasMatchAfterSwap(sel.x, sel.y, x, y)) {
             swap(sel.x, sel.y, x, y);
-
             process();
         }
     }
-
     selected = false;
     hasSelection = false;
 }
 
 void Board::clearStartMatches() {
     while (true) {
-
         bool vis[H][W] = {};
         bool found = false;
 
         for (int y = 0; y < H; y++) {
             for (int x = 0; x < W; x++) {
-
-                if (vis[y][x]) {
+                if (vis[y][x] || getColor(x, y) == Color:: Empty) {
                     continue;
                 }
 
                 std::vector<sf::Vector2i> group;
-                findGroup(x, y, board[y][x].color, vis, group);
+                findGroup(x, y, getColor(x, y), vis, group);
 
                 if (group.size() >= 3) {
-
                     found = true;
 
                     for (auto& p : group) {
-                        board[p.y][p.x].color = (Color)(rand() % 5);
-                        board[p.y][p.x].bonus = BonusType::None;
+                        setGem(p.x, p.y, randomColor());
                     }
                 }
             }
         }
-
-        if (!found){
+        if (!found) {
             break;
         }
+    }
+}
+
+void Board::spawnBonus(int x, int y, Color sourceColor) {
+    std::vector<sf::Vector2i> places;
+    for (int dy = -3; dy <= 3; dy++) {
+        for (int dx = -3; dx <= 3; dx++) {
+            int nx = x + dx;
+            int ny = y + dy;
+
+            if (!inside(nx, ny)) {
+                continue;
+            }
+
+            if (dx * dx + dy * dy > 9) {
+                continue;
+            }
+
+            places.push_back({ nx, ny });
+        }
+    }
+
+    if (places.empty()) {
+        return;
+    }
+
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::shuffle(places.begin(), places.end(), gen);
+    sf::Vector2i pos = places.front();
+
+    if (rand() % 2 == 0) {
+        setPaintBonus(pos.x, pos.y, sourceColor);
+    }
+    else {
+        setBombBonus(pos.x, pos.y, sourceColor);
     }
 }
 
@@ -209,42 +246,32 @@ bool Board::remove() {
     bool removed = false;
     for (int y = 0; y < H; y++) {
         for (int x = 0; x < W; x++) {
-
-            if (vis[y][x]) {
-                continue;
-            }
-            if (board[y][x].color == Color::Empty) {
+            if (vis[y][x] || getColor(x, y) == Color::Empty) {
                 continue;
             }
 
             std::vector<sf::Vector2i> group;
-
-            findGroup(x, y, board[y][x].color, vis, group);
+            Color groupColor = getColor(x, y);
+            findGroup(x, y, groupColor, vis, group);
 
             if (group.size() >= 3) {
                 removed = true;
-                bool makeBonus = (rand() % 100 < 5);
-
-                int bonusX = -1;
-                int bonusY = -1;
+                bool makeBonus = rand() % 100 < 5;
+                int sourceX = x;
+                int sourceY = y;
 
                 if (makeBonus) {
                     int idx = rand() % group.size();
-
-                    bonusX = group[idx].x;
-                    bonusY = group[idx].y;
+                    sourceX = group[idx].x;
+                    sourceY = group[idx].y;
                 }
 
                 for (auto& p : group) {
-                    board[p.y][p.x].color = Color::Empty;
-                    board[p.y][p.x].bonus = BonusType::None;
+                    setEmpty(p.x, p.y);
                 }
 
                 if (makeBonus) {
-                    board[bonusY][bonusX].color = (Color)(rand() % 5);
-
-                    board[bonusY][bonusX].bonus =
-                        (rand() % 2 == 0) ? BonusType::Paint: BonusType::Bomb;
+                    spawnBonus(sourceX, sourceY, groupColor);
                 }
             }
         }
@@ -255,18 +282,17 @@ bool Board::remove() {
 void Board::collapse() {
     for (int x = 0; x < W; x++) {
         int write = H - 1;
-
         for (int y = H - 1; y >= 0; y--) {
-            if (board[y][x].color != Color::Empty) {
-                board[write][x].color = board[y][x].color;
-                board[write][x].bonus = board[y][x].bonus;
+            if (getColor(x, y) != Color::Empty) {
+                if (write != y) {
+                    board[write][x] = std::move(board[y][x]);
+                    board[y][x] = std::make_unique<GemCell>(Color::Empty);
+                }
                 write--;
             }
         }
-
         while (write >= 0) {
-            board[write][x].color = Color::Empty;
-            board[write][x].bonus = BonusType::None;
+            setEmpty(x, write);
             write--;
         }
     }
@@ -275,9 +301,8 @@ void Board::collapse() {
 void Board::refill() {
     for (int y = 0; y < H; y++) {
         for (int x = 0; x < W; x++) {
-            if (board[y][x].color == Color::Empty) {
-                board[y][x].color = (Color)(rand() % 5);
-                board[y][x].bonus = BonusType::None;
+            if (getColor(x, y) == Color::Empty) {
+                board[y][x] = createRandomGem();
             }
         }
     }
@@ -285,80 +310,76 @@ void Board::refill() {
 
 void Board::process() {
     int safety = 0;
-
     while (safety < 20) {
         safety++;
-
         bool changed = remove();
-        collapse();
-        refill();
-
-        bool vis[H][W] = {};
-        bool hasGroups = false;
-
+        bool hasEmpty = false;
         for (int y = 0; y < H; y++) {
             for (int x = 0; x < W; x++) {
-
-                if (vis[y][x]) continue;
-                if (board[y][x].color == Color::Empty) {
-                    continue;
-                }
-
-                std::vector<sf::Vector2i> group;
-
-                findGroup(x, y, board[y][x].color, vis, group);
-
-                if (group.size() >= 3) {
-                    hasGroups = true;
+                if (getColor(x, y) == Color::Empty) {
+                    hasEmpty = true;
                 }
             }
         }
 
-        if (!changed && !hasGroups) {
+        if (!changed && !hasEmpty) {
             break;
         }
+
+        collapse();
+        refill();
     }
 }
 
-sf::Color Board::toSF(Color c) {
+sf::Color Board::toSF(Color c) const {
     switch (c) {
-    case Color::Red: return sf::Color::Red;
-    case Color::Green: return sf::Color::Green;
-    case Color::Blue: return sf::Color::Blue;
-    case Color::Yellow: return sf::Color::Yellow;
-    case Color::Purple: return sf::Color(180, 0, 255);
-    default: return sf::Color::Black;
+    case Color::Red:
+        return sf::Color::Red;
+
+    case Color::Green:
+        return sf::Color::Green;
+
+    case Color::Blue:
+        return sf::Color::Blue;
+
+    case Color::Yellow:
+        return sf::Color::Yellow;
+
+    case Color::Purple:
+        return sf::Color(180, 0, 255);
+
+    default:
+        return sf::Color::Black;
     }
 }
 
 void Board::draw(sf::RenderWindow& w) {
     for (int y = 0; y < H; y++) {
         for (int x = 0; x < W; x++) {
-
             sf::RectangleShape r(sf::Vector2f(SIZE - 2, SIZE - 2));
             r.setPosition(x * SIZE, y * SIZE);
-            r.setFillColor(toSF(board[y][x].color));
-
+            r.setFillColor(toSF(getColor(x, y)));
             w.draw(r);
-            if (board[y][x].bonus != BonusType::None) {
 
+            if (board[y][x] && board[y][x]->isBonus()) {
                 sf::CircleShape bonus(7);
                 bonus.setPosition(x * SIZE + 10, y * SIZE + 10);
-
                 bonus.setOutlineThickness(2);
                 bonus.setOutlineColor(sf::Color::White);
-                if (board[y][x].bonus == BonusType::Paint) {
+
+                if (board[y][x]->getType() == CellType::PaintBonus) {
                     bonus.setFillColor(sf::Color::Magenta);
                 }
-                else if (board[y][x].bonus == BonusType::Bomb) {
+
+                else if (board[y][x]->getType() == CellType::BombBonus) {
                     bonus.setFillColor(sf::Color::Black);
                 }
-
                 w.draw(bonus);
             }
 
             if (hasSelection && x == selectedCell.x && y == selectedCell.y) {
                 sf::RectangleShape outline(sf::Vector2f(SIZE - 2, SIZE - 2));
+
                 outline.setPosition(x * SIZE, y * SIZE);
                 outline.setFillColor(sf::Color::Transparent);
                 outline.setOutlineThickness(4);

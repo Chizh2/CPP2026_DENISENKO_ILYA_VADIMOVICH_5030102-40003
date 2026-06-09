@@ -1,45 +1,90 @@
 #include "Bonus.h"
 #include "Board.h"
-#include <cstdlib>
+#include <vector>
+#include <algorithm>
+#include <random>
 #include <cmath>
 
-static bool isNeighbor(int x1, int y1, int x2, int y2) {
-    return abs(x1 - x2) + abs(y1 - y2) == 1;
-}
+void PaintBonusCell::activate(Board& board, int x, int y) {
+    Color sourceColor = getColor();
+    board.setGem(x, y, sourceColor);
+    std::vector<sf::Vector2i> candidates;
+    for (int dy = -3; dy <= 3; dy++) {
+        for (int dx = -3; dx <= 3; dx++) {
+            int nx = x + dx;
+            int ny = y + dy;
 
-void Bonus::applyPaint(Board& board, int x, int y, Color source) {
-    board.setColor(x, y, source);
+            if (!board.inside(nx, ny)) {
+                continue;
+            }
 
-    int cnt = 0;
+            if (nx == x && ny == y) {
+                continue;
+            }
 
-    while (cnt < 2) {
-        int rx = x + (rand() % 7 - 3);
-        int ry = y + (rand() % 7 - 3);
+            if (dx * dx + dy * dy > 9) {
+                continue;
+            }
 
-        if (!board.inside(rx, ry)) {
+            if (std::abs(dx) + std::abs(dy) == 1) {
+                continue;
+            }
+
+            candidates.push_back({ nx, ny });
+        }
+    }
+
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::shuffle(candidates.begin(), candidates.end(), gen);
+    std::vector<sf::Vector2i> chosen;
+
+    for (auto& p : candidates) {
+        bool ok = true;
+        for (auto& q : chosen) {
+            if (board.isNeighbor(p.x, p.y, q.x, q.y)) {
+                ok = false;
+                break;
+            }
+        }
+        if (!ok) {
             continue;
         }
-        if (isNeighbor(x, y, rx, ry)) {
-            continue;
-        }
 
-        board.setColor(rx, ry, source);
-        cnt++;
+        board.setColor(p.x, p.y, sourceColor);
+        chosen.push_back(p);
+
+        if (chosen.size() == 2) {
+            break;
+        }
     }
 }
 
-void Bonus::applyBomb(Board& board, int x, int y) {
-    board.setColor(x, y, Color::Empty);
+void BombBonusCell::activate(Board& board, int x, int y) {
+    board.setEmpty(x, y);
+    std::vector<sf::Vector2i> candidates;
+    for (int yy = 0; yy < board.height(); yy++) {
+        for (int xx = 0; xx < board.width(); xx++) {
+            if (xx == x && yy == y) {
+                continue;
+            }
 
-    int killed = 1;
+            if (board.getColor(xx, yy) != Color::Empty) {
+                candidates.push_back({ xx, yy });
+            }
+        }
+    }
 
-    while (killed < 5) {
-        int rx = rand() % 8;
-        int ry = rand() % 8;
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::shuffle(candidates.begin(), candidates.end(), gen);
+    int destroyed = 1;
+    for (auto& p : candidates) {
+        board.setEmpty(p.x, p.y);
+        destroyed++;
 
-        if (board.getColor(rx, ry) != Color::Empty) {
-            board.setColor(rx, ry, Color::Empty);
-            killed++;
+        if (destroyed == 5) {
+            break;
         }
     }
 }
