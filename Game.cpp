@@ -4,9 +4,9 @@
 #include <cmath>
 
 Game::Game() :
-    window(sf::VideoMode(800, 600), "Arkanoid"),
-    ball(400.f, 300.f),
-    paddle(300.f, 550.f),
+    window(sf::VideoMode(WINDOW_WIDTH, WINDOW_HEIGHT), "Arkanoid"),
+    ball(BALL_START_X, BALL_START_Y),
+    paddle(PADDLE_START_X, PADDLE_START_Y),
     score(0),
     bottomShield(false){
     std::srand(static_cast<unsigned>(std::time(nullptr)));
@@ -43,7 +43,7 @@ void Game::run(){
 
         handleCollisions();
 
-        if (ball.getBounds().top > 600.f){
+        if (ball.getBounds().top > WINDOW_HEIGHT){
             if (bottomShield){
                 bottomShield = false;
                 ball.reverseY();
@@ -77,9 +77,9 @@ void Game::run(){
 void Game::spawnLevel(){
     blocks.clear();
 
-    const float bw = 78.f;
-    const float bh = 28.f;
-    const float gap = 4.f;
+    constexpr float bw = BLOCK_WIDTH;
+    constexpr float bh = BLOCK_HEIGHT;
+    constexpr float gap = BLOCK_GAP;
 
     for (int y = 0; y < 5; y++){
         for (int x = 0; x < 10; x++){
@@ -103,7 +103,7 @@ void Game::spawnLevel(){
 }
 
 void Game::resetBall(){
-    ball.setPosition({ 400.f, 300.f });
+    ball.setPosition({BALL_START_X, BALL_START_Y});
     ball.setVelocity({ 260.f, -260.f });
 }
 
@@ -138,7 +138,7 @@ void Game::applyBonus(BonusType type){
         break;
 
     case BonusType::RandomDirection:{
-        float speed = 260.f;
+        float speed = BALL_BASE_SPEED;
         float a = randomAngle();
         ball.setVelocity({ cos(a) * speed, -sin(a) * speed });
         break;
@@ -154,8 +154,8 @@ void Game::handleCollisions(){
         ball.reverseX();
     }
 
-    if (b.left + b.width >= 800){
-        ball.setPosition({ 800.f - b.width - 1.f, b.top });
+    if (b.left + b.width >= WINDOW_WIDTH){
+        ball.setPosition({WINDOW_WIDTH - b.width - 1.f, b.top });
         ball.reverseX();
     }
 
